@@ -1,21 +1,22 @@
 pipeline {
-    agent {
-        kubernetes {
-            label 'kaniko-agent'
-            defaultContainer 'kaniko'
-            yaml """
+  agent {
+    kubernetes {
+      label 'kaniko-agent'
+      defaultContainer 'kaniko'
+      yaml """
 apiVersion: v1
 kind: Pod
+metadata:
+  labels:
+    some-label: kaniko
 spec:
   containers:
     - name: kaniko
       image: gcr.io/kaniko-project/executor:latest
-      command:
-        - cat
       tty: true
       volumeMounts:
         - name: kaniko-secret
-          mountPath: /secret
+          mountPath: /kaniko/.docker
         - name: workspace
           mountPath: /workspace
   volumes:
@@ -25,62 +26,44 @@ spec:
     - name: workspace
       emptyDir: {}
 """
+    }
+  }
+
+  environment {
+    IMAGE_NAME = 'skundu1234/jenkins'
+    IMAGE_TAG = "${env.BUILD_NUMBER}"
+  }
+
+  stages {
+    stage('Build Docker Image') {
+      steps {
+        container('kaniko') {
+          sh '''
+            /kaniko/executor \
+              --dockerfile=/workspace/Dockerfile \
+              --context=dir:///workspace \
+              --destination=${IMAGE_NAME}:${IMAGE_TAG} \
+              --verbosity=info \
+              --insecure \
+              --skip-tls-verify
+          '''
         }
+      }
     }
 
-    environment {
-        DOCKER_IMAGE = "skundu1234/jenkins:${BUILD_NUMBER}"
-        SONA_URL = "http://my-sonarqube-sonarqube.obs-test-ns.svc.cluster.local:9000"
-        GIT_REPO_NAME = "jenkins-webhook-test"
-        GIT_USER_NAME = "skundu1234"
+    stage('Notify') {
+      steps {
+        echo "Image ${IMAGE_NAME}:${IMAGE_TAG} built successfully 🎉"
+      }
     }
+  }
 
-    stages {
-
-        stage('Checkout') {
-            steps {
-                git url: 'https://github.com/skundu1234/jenkins-webhook-test/', branch: 'main'
-                sh 'cp -r FASTAPI_DEMO /workspace/'
-            }
-        }
-
-        stage('Static code analysis') {
-            steps {
-                withCredentials([string(credentialsId: 'sonarqube', variable: 'SONAR_AUTH_TOKEN')]) {
-                    sh 'echo "Run SonarQube analysis here (using ${SONA_URL})"'
-                    // Replace with actual SonarQube CLI or scanner command
-                }
-            }
-        }
-
-        stage('Build and Push Docker Image') {
-            steps {
-                container('kaniko') {
-                    sh '''
-                    /kaniko/executor \
-                      --dockerfile=/workspace/Dockerfile \
-                      --context=dir:///workspace \
-                      --destination=${DOCKER_IMAGE} \
-                      --insecure \
-                      --skip-tls-verify
-                    '''
-                }
-            }
-        }
-
-        stage('Update deployment file') {
-            steps {
-                withCredentials([string(credentialsId: 'github', variable: 'GITHUB_TOKEN')]) {
-                    sh '''
-                        git config user.email "sourav.kundu967@gmail.com"
-                        git config user.name "Sourav Kundu"
-                        sed -i "s/replaceImageTag/${BUILD_NUMBER}/g" FASTAPI_DEMO/deployment.yml
-                        git add FASTAPI_DEMO/deployment.yml
-                        git commit -m "Update deployment image to version ${BUILD_NUMBER}"
-                        git push https://${GITHUB_TOKEN}@github.com/${GIT_USER_NAME}/${GIT_REPO_NAME} HEAD:main
-                    '''
-                }
-            }
-        }
+  post {
+    failure {
+      echo '❌ Build failed.'
     }
+    success {
+      echo '✅ Build completed.'
+    }
+  }
 }
