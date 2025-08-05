@@ -10,9 +10,8 @@ spec:
   containers:
     - name: kaniko
       image: gcr.io/kaniko-project/executor:latest
-      command:
-        - /busybox/cat
-      tty: true
+      command: [""]
+      args: [""]
       volumeMounts:
         - name: kaniko-secret
           mountPath: /kaniko/.docker/
@@ -31,6 +30,8 @@ spec:
 
   environment {
     DOCKER_IMAGE = "skundu1234/jenkins:${BUILD_NUMBER}"
+    GIT_REPO_NAME = "jenkins-webhook-test"
+    GIT_USER_NAME = "skundu1234"
   }
 
   stages {
@@ -75,7 +76,7 @@ spec:
       echo "✅ Kaniko pipeline completed successfully!"
     }
     failure {
-      echo "❌ Kaniko pipeline failed. Check logs for details."
+      echo "❌ Pipeline failed. Check logs for details."
     }
   }
 }
