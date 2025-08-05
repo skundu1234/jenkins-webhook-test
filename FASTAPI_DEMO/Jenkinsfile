@@ -6,53 +6,50 @@ pipeline {
       yaml """
 apiVersion: v1
 kind: Pod
+metadata:
+  name: kaniko-build
+  namespace: obs-test-ns
 spec:
-  containers:
-    - name: kaniko
-      image: gcr.io/kaniko-project/executor:v1.8.0  # Specify a version
-      args: ["--verbosity=debug"]  # Change verbosity to debug
-      tty: true
-      volumeMounts:
-        - name: kaniko-secret
-          mountPath: /kaniko/.docker
-        - name: workspace-volume
-          mountPath: /workspace
+  restartPolicy: Never
   volumes:
+    - name: workspace
+      emptyDir: {}
     - name: kaniko-secret
       secret:
-        secretName: docker-config
-    - name: workspace-volume
-      emptyDir: {}
-  restartPolicy: Never
+        secretName: docker-config  # Replace with your Docker registry secret name
+  initContainers:
+    - name: git-clone
+      image: alpine/git
+      command: ["git", "clone", "--branch=main", "https://github.com/skundu1234/jenkins-webhook-test.git", "/workspace"]
+      volumeMounts:
+        - name: workspace
+          mountPath: /workspace
+  containers:
+    - name: kaniko
+      image: gcr.io/kaniko-project/executor:latest
+      args:
+        - "--context=/workspace/FASTAPI_DEMO"
+        - "--dockerfile=/workspace/FASTAPI_DEMO/Dockerfile"
+        - "--destination=docker.io/skundu1234/fastapi-demo:latest"  # Replace with your image name
+        - "--verbosity=info"
+      volumeMounts:
+        - name: workspace
+          mountPath: /workspace
+        - name: kaniko-secret
+          mountPath: /kaniko/.docker
 """
     }
   }
 
   environment {
-    DOCKER_IMAGE = "docker.io/skundu1234/fastapi-demo:${BUILD_NUMBER}"
-    GIT_REPO = "https://github.com/skundu1234/jenkins-webhook-test.git"
+    DOCKER_IMAGE = "docker.io/skundu1234/fastapi-demo:latest"  // Replace with your image name
   }
 
   stages {
-    stage('Clone Repo') {
-      steps {
-        sh '''
-          git clone ${GIT_REPO} /workspace
-        '''
-      }
-    }
-
     stage('Build & Push with Kaniko') {
       steps {
         container('kaniko') {
           sh 'echo "🔥 Starting Kaniko build"'
-          sh '''
-            /kaniko/executor \
-              --context=/workspace/FASTAPI_DEMO \
-              --dockerfile=/workspace/FASTAPI_DEMO/Dockerfile \
-              --destination=${DOCKER_IMAGE} \
-              --verbosity=debug
-          '''
         }
       }
     }
