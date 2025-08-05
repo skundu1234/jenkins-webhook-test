@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fastapi-demo
+  labels:
+    app: fastapi-demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: fastapi-demo
+  template:
+    metadata:
+      labels:
+        app: fastapi-demo
+    spec:
+      containers:
+        - name: fastapi-demo
+          image: skundu1234/jenkins:replaceImageTag
+          ports:
+            - containerPort: 8000
