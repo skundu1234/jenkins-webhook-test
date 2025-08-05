@@ -48,7 +48,8 @@ spec:
       steps {
         container('kaniko') {
           sh 'echo "🔥 Starting Kaniko build"'
-          // This step is not necessary since Kaniko is run in the container's args
+          // Add a command to list the contents of the workspace for debugging
+          sh 'ls -la /workspace/FASTAPI_DEMO'
         }
       }
     }
