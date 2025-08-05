@@ -1,69 +1,58 @@
 pipeline {
   agent {
     kubernetes {
-      label 'kaniko-agent'
       defaultContainer 'kaniko'
       yaml """
 apiVersion: v1
 kind: Pod
-metadata:
-  labels:
-    some-label: kaniko
 spec:
   containers:
-    - name: kaniko
-      image: gcr.io/kaniko-project/executor:latest
-      tty: true
-      volumeMounts:
-        - name: kaniko-secret
-          mountPath: /kaniko/.docker
-        - name: workspace
-          mountPath: /workspace
-  volumes:
+  - name: kaniko
+    image: gcr.io/kaniko-project/executor:v1.17.0
+    tty: true
+    volumeMounts:
     - name: kaniko-secret
-      secret:
-        secretName: docker-cred
+      mountPath: /kaniko/.docker
     - name: workspace
-      emptyDir: {}
+      mountPath: /workspace
+  volumes:
+  - name: kaniko-secret
+    secret:
+      secretName: docker-cred
+  - name: workspace
+    emptyDir: {}
 """
     }
   }
 
   environment {
-    IMAGE_NAME = 'skundu1234/jenkins'
-    IMAGE_TAG = "${env.BUILD_NUMBER}"
+    IMAGE = "skundu1234/jenkins"
+    TAG = "${env.BUILD_NUMBER}"
   }
 
   stages {
-    stage('Build Docker Image') {
+    stage('Build & Push') {
       steps {
         container('kaniko') {
           sh '''
+            cp -r . /workspace
             /kaniko/executor \
               --dockerfile=/workspace/Dockerfile \
               --context=dir:///workspace \
-              --destination=${IMAGE_NAME}:${IMAGE_TAG} \
-              --verbosity=info \
-              --insecure \
-              --skip-tls-verify
+              --destination=${IMAGE}:${TAG} \
+              --verbosity=info
           '''
         }
-      }
-    }
-
-    stage('Notify') {
-      steps {
-        echo "Image ${IMAGE_NAME}:${IMAGE_TAG} built successfully 🎉"
       }
     }
   }
 
   post {
-    failure {
-      echo '❌ Build failed.'
-    }
     success {
-      echo '✅ Build completed.'
+      echo "✅ Docker image ${IMAGE}:${TAG} built and pushed successfully!"
+    }
+    failure {
+      echo "❌ Kaniko build failed. Time to troubleshoot."
     }
   }
 }
