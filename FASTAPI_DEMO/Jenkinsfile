@@ -39,6 +39,14 @@ spec:
           mountPath: /workspace
         - name: kaniko-secret
           mountPath: /kaniko/.docker
+    - name: sonar
+      image: sonarsource/sonar-scanner-cli:latest
+      command:
+        - cat
+      tty: true
+      volumeMounts:
+        - name: workspace
+          mountPath: /workspace
 """
     }
   }
@@ -48,6 +56,22 @@ spec:
   }
 
   stages {
+    stage('SonarQube Analysis') {
+      steps {
+        container('sonar') {
+          withSonarQubeEnv('My SonarQube Server') {
+            sh '''
+              sonar-scanner \
+                -Dsonar.projectKey=fastapi-demo \
+                -Dsonar.sources=/workspace/FASTAPI_DEMO \
+                -Dsonar.host.url=http://my-sonarqube-sonarqube.obs-test-ns.svc.cluster.local:9000 \
+                -Dsonar.login=${SONAR_TOKEN}
+            '''
+          }
+        }
+      }
+    }
+
     stage('Build & Push Image') {
       steps {
         echo "🚀 Kaniko is building: ${DOCKER_IMAGE}"
@@ -60,7 +84,7 @@ spec:
       echo "✅ Image successfully pushed to ${DOCKER_IMAGE}"
     }
     failure {
-      echo "❌ Build failed. Check Kaniko output logs."
+      echo "❌ Build failed. Check logs for details."
     }
     always {
       echo "📦 Pipeline finished running."
