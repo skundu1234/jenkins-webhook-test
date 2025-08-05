@@ -32,7 +32,7 @@ spec:
       args:
         - "--context=/workspace/FASTAPI_DEMO"
         - "--dockerfile=/workspace/FASTAPI_DEMO/Dockerfile"
-        - "--destination=docker.io/skundu1234/fastapi-demo:latest"
+        - "--destination=docker.io/skundu1234/fastapi-demo:build-${BUILD_NUMBER}"
         - "--verbosity=info"
       volumeMounts:
         - name: workspace
@@ -43,17 +43,21 @@ spec:
     }
   }
 
+  environment {
+    DOCKER_IMAGE = "docker.io/skundu1234/fastapi-demo:build-${BUILD_NUMBER}"
+  }
+
   stages {
     stage('Build & Push Image') {
       steps {
-        echo "🚀 Kaniko container launched — it will execute build on startup."
+        echo "🚀 Kaniko is building: ${DOCKER_IMAGE}"
       }
     }
   }
 
   post {
     success {
-      echo "✅ Image successfully pushed to docker.io/skundu1234/fastapi-demo:latest"
+      echo "✅ Image successfully pushed to ${DOCKER_IMAGE}"
     }
     failure {
       echo "❌ Build failed. Check Kaniko output logs."
