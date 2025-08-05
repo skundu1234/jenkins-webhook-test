@@ -1,0 +1,33 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    jenkins-agent: maven
+spec:
+  containers:
+    - name: maven
+      image: maven:3.8.6-openjdk-11
+      command:
+        - cat
+      tty: true
+      volumeMounts:
+        - name: maven-repo
+          mountPath: /root/.m2
+        - name: config-volume
+          mountPath: /usr/share/jenkins/config
+
+    - name: docker
+      image: docker:20.10
+      command:
+        - cat
+      tty: true
+
+  volumes:
+    - name: maven-repo
+      persistentVolumeClaim:
+        claimName: maven-cache-pvc
+
+    - name: config-volume
+      configMap:
+        name: jenkins-agent-config
+
