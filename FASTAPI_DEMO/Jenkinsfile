@@ -1,45 +1,74 @@
 pipeline {
-    agent any
+    agent {
+        kubernetes {
+            label 'kaniko-agent'
+            defaultContainer 'kaniko'
+            yaml """
+apiVersion: v1
+kind: Pod
+spec:
+  containers:
+    - name: kaniko
+      image: gcr.io/kaniko-project/executor:latest
+      command:
+        - cat
+      tty: true
+      volumeMounts:
+        - name: kaniko-secret
+          mountPath: /secret
+        - name: workspace
+          mountPath: /workspace
+  volumes:
+    - name: kaniko-secret
+      secret:
+        secretName: docker-cred
+    - name: workspace
+      emptyDir: {}
+"""
+        }
+    }
+
+    environment {
+        DOCKER_IMAGE = "skundu1234/jenkins:${BUILD_NUMBER}"
+        SONA_URL = "http://my-sonarqube-sonarqube.obs-test-ns.svc.cluster.local:9000"
+        GIT_REPO_NAME = "jenkins-webhook-test"
+        GIT_USER_NAME = "skundu1234"
+    }
 
     stages {
+
         stage('Checkout') {
             steps {
                 git url: 'https://github.com/skundu1234/jenkins-webhook-test/', branch: 'main'
+                sh 'cp -r FASTAPI_DEMO /workspace/'
             }
         }
 
         stage('Static code analysis') {
-            environment {
-                SONA_URL = "http://my-sonarqube-sonarqube.obs-test-ns.svc.cluster.local:9000"
-            }
             steps {
                 withCredentials([string(credentialsId: 'sonarqube', variable: 'SONAR_AUTH_TOKEN')]) {
-                    // Add SonarQube scan command here
-                    sh 'echo "Run SonarQube analysis here"'
+                    sh 'echo "Run SonarQube analysis here (using ${SONA_URL})"'
+                    // Replace with actual SonarQube CLI or scanner command
                 }
             }
         }
 
         stage('Build and Push Docker Image') {
-            environment {
-                DOCKER_IMAGE = "skundu1234/jenkins:${BUILD_NUMBER}"
-            }
             steps {
-                script {
-                    sh 'cd FASTAPI_DEMO && docker build -t ${DOCKER_IMAGE} .'
-                    def dockerImage = docker.image("${DOCKER_IMAGE}")
-                    docker.withRegistry('https://index.docker.io/v1/', 'docker-cred') {
-                        dockerImage.push()
-                    }
+                container('kaniko') {
+                    sh '''
+                    /kaniko/executor \
+                      --dockerfile=/workspace/Dockerfile \
+                      --context=dir:///workspace \
+                      --destination=${DOCKER_IMAGE} \
+                      --insecure \
+                      --skip-tls-verify
+                    '''
                 }
             }
         }
 
         stage('Update deployment file') {
-            environment {
-                GIT_REPO_NAME = "jenkins-webhook-test"
-                GIT_USER_NAME = "skundu1234"
-            }
             steps {
                 withCredentials([string(credentialsId: 'github', variable: 'GITHUB_TOKEN')]) {
                     sh '''
