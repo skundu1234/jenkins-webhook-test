@@ -35,17 +35,17 @@ spec:
     }
 
     stage('Build & Push with Kaniko') {
-      steps {
+    steps {
         container('kaniko') {
-          sh '''
+        sh '''
             /kaniko/executor \
-              --context=FASTAPI_DEMO \
-              --dockerfile=FASTAPI_DEMO/Dockerfile \
-              --destination=${DOCKER_IMAGE} \
-              --verbosity=info
-          '''
+            --context=FASTAPI_DEMO \
+            --dockerfile=FASTAPI_DEMO/Dockerfile \
+            --destination=docker.io/skundu1234/fastapi-demo:${BUILD_NUMBER} \
+            --verbosity=info
+        '''
         }
-      }
+    }
     }
   }
 
