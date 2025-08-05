@@ -11,14 +11,12 @@ metadata:
   namespace: obs-test-ns
 spec:
   restartPolicy: Never
-  nodeSelector:
-    kubernetes.io/os: "linux"
   volumes:
     - name: workspace
       emptyDir: {}
     - name: kaniko-secret
       secret:
-        secretName: docker-config  # Replace with your Docker registry secret name
+        secretName: docker-config
   initContainers:
     - name: git-clone
       image: alpine/git
@@ -32,7 +30,7 @@ spec:
       args:
         - "--context=/workspace/FASTAPI_DEMO"
         - "--dockerfile=/workspace/FASTAPI_DEMO/Dockerfile"
-        - "--destination=docker.io/skundu1234/fastapi-demo:latest"  # Replace with your image name
+        - "--destination=docker.io/skundu1234/fastapi-demo:latest"
         - "--verbosity=info"
       volumeMounts:
         - name: workspace
@@ -43,24 +41,21 @@ spec:
     }
   }
 
+  environment {
+    DOCKER_IMAGE = "docker.io/skundu1234/fastapi-demo:latest"
+  }
+
   stages {
     stage('Build & Push with Kaniko') {
       steps {
-        container('kaniko') {
-          // List files in the workspace for debugging
-          sh 'echo "Listing contents of /workspace/FASTAPI_DEMO:"'
-          sh 'ls -la /workspace/FASTAPI_DEMO'
-          
-          // Start Kaniko build
-          sh 'echo "🔥 Starting Kaniko build"'
-        }
+        echo "🔥 Kaniko build and push running as container entrypoint"
       }
     }
   }
 
   post {
     success {
-      echo "✅ Image pushed to docker.io/skundu1234/fastapi-demo:latest"
+      echo "✅ Image pushed to ${DOCKER_IMAGE}"
     }
     failure {
       echo "❌ Build failed. Check Kaniko logs for details."
