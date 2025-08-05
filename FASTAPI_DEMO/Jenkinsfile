@@ -9,7 +9,10 @@ kind: Pod
 spec:
   containers:
     - name: kaniko
-      image: gcr.io/kaniko-project/executor:latest
+      image: gcr.io/kaniko-project/executor:v1.22.1
+      command:
+        - cat
+      tty: true
       volumeMounts:
         - name: kaniko-secret
           mountPath: /kaniko/.docker
@@ -41,26 +44,30 @@ spec:
     }
 
     stage('Build & Push with Kaniko') {
-    steps {
+      steps {
         container('kaniko') {
-        sh '''
+          sh 'echo "🔥 Starting Kaniko build"'
+          sh '''
             /kaniko/executor \
-            --context=/workspace/FASTAPI_DEMO \
-            --dockerfile=/workspace/FASTAPI_DEMO/Dockerfile \
-            --destination=docker.io/skundu1234/fastapi-demo:${BUILD_NUMBER} \
-            --verbosity=info
-        '''
+              --context=/workspace/FASTAPI_DEMO \
+              --dockerfile=/workspace/FASTAPI_DEMO/Dockerfile \
+              --destination=${DOCKER_IMAGE} \
+              --verbosity=info
+          '''
         }
-    }
+      }
     }
   }
 
   post {
     success {
-      echo "✅ Image pushed: ${DOCKER_IMAGE}"
+      echo "✅ Image pushed to ${DOCKER_IMAGE}"
     }
     failure {
-      echo "❌ Kaniko build failed. Check logs."
+      echo "❌ Build failed. Check Kaniko logs for details."
+    }
+    always {
+      echo "📦 Jenkins pipeline finished running Kaniko"
     }
   }
 }
