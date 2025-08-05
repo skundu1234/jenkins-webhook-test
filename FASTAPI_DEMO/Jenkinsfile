@@ -1,5 +1,28 @@
 pipeline {
-  agent any
+  agent {
+    kubernetes {
+      label 'docker-agent'
+      defaultContainer 'docker-agent'
+      yaml """
+apiVersion: v1
+kind: Pod
+spec:
+  containers:
+    - name: docker-agent
+      image: docker:24.0.2-cli
+      command: ['cat']
+      tty: true
+      volumeMounts:
+        - name: docker-socket
+          mountPath: /var/run/docker.sock
+  volumes:
+    - name: docker-socket
+      hostPath:
+        path: /var/run/docker.sock
+  restartPolicy: Never
+"""
+    }
+  }
 
   environment {
     SONA_URL = "http://my-sonarqube-sonarqube.obs-test-ns.svc.cluster.local:9000"
@@ -17,10 +40,12 @@ pipeline {
 
     stage('Build and Test') {
       steps {
-        sh '''
-          echo "Build Docker Image"
-          docker build -t skundu1234/jenkins:1 .
-        '''
+        container('docker-agent') {
+          sh '''
+            echo "🔨 Build Docker Image"
+            docker build -t skundu1234/jenkins:1 .
+          '''
+        }
       }
     }
 
@@ -28,8 +53,8 @@ pipeline {
       steps {
         withCredentials([string(credentialsId: 'sonarqube', variable: 'SONAR_AUTH_TOKEN')]) {
           sh '''
-            echo "Run SonarQube analysis"
-            # Add actual sonar-scanner command here if needed
+            echo "🧪 Run SonarQube analysis"
+            # sonar-scanner -Dsonar.projectKey=your_project_key -Dsonar.host.url=$SONA_URL -Dsonar.login=$SONAR_AUTH_TOKEN
           '''
         }
       }
@@ -37,11 +62,13 @@ pipeline {
 
     stage('Build and Push Docker Image') {
       steps {
-        script {
-          sh 'cd FASTAPI_DEMO && docker build -t ${DOCKER_IMAGE} .'
-          def dockerImage = docker.image("${DOCKER_IMAGE}")
-          docker.withRegistry('https://index.docker.io/v1/', 'docker-cred') {
-            dockerImage.push()
+        container('docker-agent') {
+          script {
+            sh 'cd FASTAPI_DEMO && docker build -t ${DOCKER_IMAGE} .'
+            def dockerImage = docker.image("${DOCKER_IMAGE}")
+            docker.withRegistry('https://index.docker.io/v1/', 'docker-cred') {
+              dockerImage.push()
+            }
           }
         }
       }
