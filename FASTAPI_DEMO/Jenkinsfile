@@ -1,46 +1,62 @@
 pipeline {
-  agent {
-    kubernetes {
-      defaultContainer 'kaniko'
-      yaml """
-apiVersion: v1
-kind: Pod
-spec:
-  containers:
-  - name: kaniko
-    image: gcr.io/kaniko-project/executor:v1.17.0
-    tty: true
-    volumeMounts:
-    - name: kaniko-secret
-      mountPath: /kaniko/.docker
-    - name: workspace
-      mountPath: /workspace
-  volumes:
-  - name: kaniko-secret
-    secret:
-      secretName: docker-cred
-  - name: workspace
-    emptyDir: {}
-"""
-    }
-  }
+  agent any
 
   environment {
-    IMAGE = "skundu1234/jenkins"
-    TAG = "${env.BUILD_NUMBER}"
+    SONA_URL = "http://my-sonarqube-sonarqube.obs-test-ns.svc.cluster.local:9000"
+    DOCKER_IMAGE = "skundu1234/jenkins:${BUILD_NUMBER}"
+    GIT_REPO_NAME = "jenkins-webhook-test"
+    GIT_USER_NAME = "skundu1234"
   }
 
   stages {
-    stage('Build & Push') {
+    stage('Checkout') {
       steps {
-        container('kaniko') {
+        git url: 'https://github.com/skundu1234/jenkins-webhook-test/', branch: 'main'
+      }
+    }
+
+    stage('Build and Test') {
+      steps {
+        sh '''
+          echo "Build Docker Image"
+          docker build -t skundu1234/jenkins:1 .
+        '''
+      }
+    }
+
+    stage('Static Code Analysis') {
+      steps {
+        withCredentials([string(credentialsId: 'sonarqube', variable: 'SONAR_AUTH_TOKEN')]) {
           sh '''
-            cp -r . /workspace
-            /kaniko/executor \
-              --dockerfile=/workspace/Dockerfile \
-              --context=dir:///workspace \
-              --destination=${IMAGE}:${TAG} \
-              --verbosity=info
+            echo "Run SonarQube analysis"
+            # Add actual sonar-scanner command here if needed
+          '''
+        }
+      }
+    }
+
+    stage('Build and Push Docker Image') {
+      steps {
+        script {
+          sh 'cd FASTAPI_DEMO && docker build -t ${DOCKER_IMAGE} .'
+          def dockerImage = docker.image("${DOCKER_IMAGE}")
+          docker.withRegistry('https://index.docker.io/v1/', 'docker-cred') {
+            dockerImage.push()
+          }
+        }
+      }
+    }
+
+    stage('Update Deployment File') {
+      steps {
+        withCredentials([string(credentialsId: 'github', variable: 'GITHUB_TOKEN')]) {
+          sh '''
+            git config user.email "sourav.kundu967@gmail.com"
+            git config user.name "Sourav Kundu"
+            sed -i "s/replaceImageTag/${BUILD_NUMBER}/g" FASTAPI_DEMO/deployment.yml
+            git add FASTAPI_DEMO/deployment.yml
+            git commit -m "Update deployment image to version ${BUILD_NUMBER}"
+            git push https://${GITHUB_TOKEN}@github.com/${GIT_USER_NAME}/${GIT_REPO_NAME} HEAD:main
           '''
         }
       }
@@ -49,10 +65,10 @@ spec:
 
   post {
     success {
-      echo "✅ Docker image ${IMAGE}:${TAG} built and pushed successfully!"
+      echo "✅ Pipeline completed successfully!"
     }
     failure {
-      echo "❌ Kaniko build failed. Time to troubleshoot."
+      echo "❌ Pipeline failed. Check logs for details."
     }
   }
 }
