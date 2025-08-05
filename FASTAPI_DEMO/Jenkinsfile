@@ -1,34 +1,36 @@
 pipeline {
   agent {
     kubernetes {
-      label 'docker-agent'
-      defaultContainer 'docker-agent'
+      label 'kaniko-agent'
+      defaultContainer 'kaniko'
       yaml """
 apiVersion: v1
 kind: Pod
 spec:
   containers:
-    - name: docker-agent
-      image: docker:24.0.2-cli
-      command: ['cat']
+    - name: kaniko
+      image: gcr.io/kaniko-project/executor:latest
+      command:
+        - /busybox/cat
       tty: true
       volumeMounts:
-        - name: docker-socket
-          mountPath: /var/run/docker.sock
+        - name: kaniko-secret
+          mountPath: /kaniko/.docker/
+        - name: workspace-volume
+          mountPath: /workspace
   volumes:
-    - name: docker-socket
-      hostPath:
-        path: /var/run/docker.sock
+    - name: kaniko-secret
+      secret:
+        secretName: docker-config
+    - name: workspace-volume
+      emptyDir: {}
   restartPolicy: Never
 """
     }
   }
 
   environment {
-    SONA_URL = "http://my-sonarqube-sonarqube.obs-test-ns.svc.cluster.local:9000"
     DOCKER_IMAGE = "skundu1234/jenkins:${BUILD_NUMBER}"
-    GIT_REPO_NAME = "jenkins-webhook-test"
-    GIT_USER_NAME = "skundu1234"
   }
 
   stages {
@@ -38,38 +40,16 @@ spec:
       }
     }
 
-    stage('Build and Test') {
+    stage('Build and Push with Kaniko') {
       steps {
-        container('docker-agent') {
+        container('kaniko') {
           sh '''
-            echo "🔨 Build Docker Image"
-            docker build -t skundu1234/jenkins:1 .
+            /kaniko/executor \
+              --dockerfile=/workspace/FASTAPI_DEMO/Dockerfile \
+              --context=/workspace/FASTAPI_DEMO \
+              --destination=skundu1234/jenkins:${BUILD_NUMBER} \
+              --verbosity=info
           '''
-        }
-      }
-    }
-
-    stage('Static Code Analysis') {
-      steps {
-        withCredentials([string(credentialsId: 'sonarqube', variable: 'SONAR_AUTH_TOKEN')]) {
-          sh '''
-            echo "🧪 Run SonarQube analysis"
-            # sonar-scanner -Dsonar.projectKey=your_project_key -Dsonar.host.url=$SONA_URL -Dsonar.login=$SONAR_AUTH_TOKEN
-          '''
-        }
-      }
-    }
-
-    stage('Build and Push Docker Image') {
-      steps {
-        container('docker-agent') {
-          script {
-            sh 'cd FASTAPI_DEMO && docker build -t ${DOCKER_IMAGE} .'
-            def dockerImage = docker.image("${DOCKER_IMAGE}")
-            docker.withRegistry('https://index.docker.io/v1/', 'docker-cred') {
-              dockerImage.push()
-            }
-          }
         }
       }
     }
@@ -83,7 +63,7 @@ spec:
             sed -i "s/replaceImageTag/${BUILD_NUMBER}/g" FASTAPI_DEMO/deployment.yml
             git add FASTAPI_DEMO/deployment.yml
             git commit -m "Update deployment image to version ${BUILD_NUMBER}"
-            git push https://${GITHUB_TOKEN}@github.com/${GIT_USER_NAME}/${GIT_REPO_NAME} HEAD:main
+            git push https://${GITHUB_TOKEN}@github.com/skundu1234/jenkins-webhook-test HEAD:main
           '''
         }
       }
@@ -92,10 +72,10 @@ spec:
 
   post {
     success {
-      echo "✅ Pipeline completed successfully!"
+      echo "✅ Kaniko pipeline completed successfully!"
     }
     failure {
-      echo "❌ Pipeline failed. Check logs for details."
+      echo "❌ Kaniko pipeline failed. Check logs for details."
     }
   }
 }
