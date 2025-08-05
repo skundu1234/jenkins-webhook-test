@@ -47,9 +47,12 @@ spec:
     stage('Build & Push with Kaniko') {
       steps {
         container('kaniko') {
-          sh 'echo "🔥 Starting Kaniko build"'
-          // Add a command to list the contents of the workspace for debugging
+          // List files in the workspace for debugging
+          sh 'echo "Listing contents of /workspace/FASTAPI_DEMO:"'
           sh 'ls -la /workspace/FASTAPI_DEMO'
+          
+          // Start Kaniko build
+          sh 'echo "🔥 Starting Kaniko build"'
         }
       }
     }
