@@ -10,11 +10,7 @@ spec:
   containers:
     - name: kaniko
       image: gcr.io/kaniko-project/executor:debug
-      command:
-        - /busybox/sh
-      args:
-        - -c
-        - cat
+      # Remove the 'command' and 'args' sections entirely
       volumeMounts:
         - name: kaniko-secret
           mountPath: /kaniko/.docker/
