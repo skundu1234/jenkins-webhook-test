@@ -9,8 +9,8 @@ kind: Pod
 spec:
   containers:
     - name: kaniko
-      image: gcr.io/kaniko-project/executor:v1.8.0  // Specify a version
-      args: ["--verbosity=debug"]  // Change verbosity to debug
+      image: gcr.io/kaniko-project/executor:v1.8.0  # Specify a version
+      args: ["--verbosity=debug"]  # Change verbosity to debug
       tty: true
       volumeMounts:
         - name: kaniko-secret
@@ -51,7 +51,7 @@ spec:
               --context=/workspace/FASTAPI_DEMO \
               --dockerfile=/workspace/FASTAPI_DEMO/Dockerfile \
               --destination=${DOCKER_IMAGE} \
-              --verbosity=debug  // Increased verbosity for debugging
+              --verbosity=debug
           '''
         }
       }
