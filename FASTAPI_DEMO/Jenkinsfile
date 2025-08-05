@@ -44,29 +44,22 @@ spec:
   }
 
   stages {
-    stage('Build & Push with Kaniko') {
+    stage('Build & Push Image') {
       steps {
-        container('kaniko') {
-          // Log the contents of the workspace to verify file presence
-          sh 'echo "Listing contents of /workspace/FASTAPI_DEMO:"'
-          sh 'ls -la /workspace/FASTAPI_DEMO'
-          
-          // Start Kaniko build
-          sh 'echo "🔥 Starting Kaniko build"'
-        }
+        echo "🚀 Kaniko container launched — it will execute build on startup."
       }
     }
   }
 
   post {
     success {
-      echo "✅ Image pushed to docker.io/skundu1234/fastapi-demo:latest"
+      echo "✅ Image successfully pushed to docker.io/skundu1234/fastapi-demo:latest"
     }
     failure {
-      echo "❌ Build failed. Check Kaniko logs for details."
+      echo "❌ Build failed. Check Kaniko output logs."
     }
     always {
-      echo "📦 Jenkins pipeline finished running Kaniko"
+      echo "📦 Pipeline finished running."
     }
   }
 }
